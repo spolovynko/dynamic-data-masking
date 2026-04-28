@@ -86,12 +86,26 @@ docker compose up --build
 
 The initial API exposes:
 
+- `GET /`
 - `GET /api/health`
 - `POST /api/documents`
 - `GET /api/jobs/{job_id}`
 - `POST /api/jobs/{job_id}/process`
 
-Uploaded files are stored locally under `data/jobs/` by default. Override with:
+The worker currently extracts PDF text with word-level coordinates and writes:
+
+```text
+data/objects/extracted/{job_id}/layout.json
+```
+
+The frontend is served at:
+
+```text
+http://127.0.0.1:8000/
+```
+
+Uploaded files and generated artifacts are stored locally under `data/objects/` by default.
+Override the data root with:
 
 ```powershell
 $env:DDM_DATA_ROOT = "C:\path\to\data"; uv run ddm-api

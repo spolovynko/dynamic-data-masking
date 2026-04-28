@@ -15,3 +15,12 @@ def test_health_endpoint() -> None:
         "version": "0.1.0",
         "environment": "local",
     }
+
+
+def test_frontend_index_is_served() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Dynamic Data Masking" in response.text

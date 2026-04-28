@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dynamic Data Masking</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <div class="topbar">
+          <div>
+            <h1>Dynamic Data Masking</h1>
+            <p id="serviceState">Checking service</p>
+          </div>
+          <a class="docs-link" href="/docs">API Docs</a>
+        </div>
+
+        <div class="work-grid">
+          <section class="upload-panel" aria-labelledby="uploadTitle">
+            <div class="section-heading">
+              <h2 id="uploadTitle">Document</h2>
+              <span id="fileTypeHint">PDF or TXT</span>
+            </div>
+
+            <form id="uploadForm">
+              <label id="dropZone" class="drop-zone" for="fileInput">
+                <input id="fileInput" name="file" type="file" accept=".pdf,.txt" />
+                <span class="drop-icon" aria-hidden="true">+</span>
+                <span id="fileName">Drop file or choose one</span>
+              </label>
+
+              <div class="actions">
+                <button id="uploadButton" type="submit">Upload</button>
+                <button id="processButton" type="button" disabled>Process</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="status-panel" aria-labelledby="statusTitle">
+            <div class="section-heading">
+              <h2 id="statusTitle">Job</h2>
+              <span id="jobId">No job</span>
+            </div>
+
+            <ol id="timeline" class="timeline" aria-live="polite">
+              <li data-status="uploaded">Uploaded</li>
+              <li data-status="queued">Queued</li>
+              <li data-status="extracting">Extracting</li>
+              <li data-status="detecting">Detecting</li>
+              <li data-status="planning_redactions">Planning</li>
+              <li data-status="redacting">Redacting</li>
+              <li data-status="verifying">Verifying</li>
+              <li data-status="ready">Ready</li>
+            </ol>
+
+            <div class="job-output">
+              <div>
+                <span>Status</span>
+                <strong id="currentStatus">Idle</strong>
+              </div>
+              <div>
+                <span>Updated</span>
+                <strong id="updatedAt">--</strong>
+              </div>
+            </div>
+
+            <pre id="eventLog" class="event-log"></pre>
+          </section>
+        </div>
+      </section>
+    </main>
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>

@@ -27,6 +27,7 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src ./src
+COPY frontend ./frontend
 RUN uv sync --frozen --no-dev
 
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
