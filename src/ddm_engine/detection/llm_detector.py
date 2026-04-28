@@ -34,8 +34,7 @@ class LLMSpecialCategoryDetector:
                 candidates.append(
                     CandidateEntity(
                         candidate_id=(
-                            f"llm-{job_id}-{page_index.page_number}-"
-                            f"{start}-{end}-{finding_index}"
+                            f"llm-{job_id}-{page_index.page_number}-{start}-{end}-{finding_index}"
                         ),
                         label=finding.label.value,
                         text=finding.text,

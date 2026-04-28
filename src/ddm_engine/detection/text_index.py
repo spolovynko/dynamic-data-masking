@@ -19,9 +19,7 @@ class PageTextIndex:
 
     def tokens_for_span(self, start: int, end: int) -> list[LayoutToken]:
         return [
-            indexed.token
-            for indexed in self.tokens
-            if indexed.start < end and indexed.end > start
+            indexed.token for indexed in self.tokens if indexed.start < end and indexed.end > start
         ]
 
     def find_text_span(self, needle: str) -> tuple[int, int] | None:

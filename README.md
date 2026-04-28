@@ -1,5 +1,7 @@
 # Dynamic Data Masking
 
+[![CI/CD](https://github.com/spolovynko/dynamic-data-masking/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/spolovynko/dynamic-data-masking/actions/workflows/ci-cd.yml)
+
 Dynamic Data Masking is a Python/FastAPI document redaction platform. It accepts
 PDF, DOCX, TXT, and image uploads, extracts text and coordinates, detects
 personal or sensitive data, plans black-box redactions, permanently redacts the
@@ -272,6 +274,23 @@ Grafana:
 ```text
 http://127.0.0.1:3000/
 ```
+
+## CI/CD
+
+GitHub Actions workflow:
+
+```text
+.github/workflows/ci-cd.yml
+```
+
+The pipeline runs on pull requests, pushes to `main`, and manual dispatch. It
+contains:
+
+- lint and test job: uv sync, Ruff format check, Ruff lint, Pytest
+- security job: Bandit source scan and pip-audit dependency audit
+- Docker job: Buildx build, API health smoke test, and GHCR image push on `main`
+- deployment placeholder: manual `dev`, `staging`, or `prod` gate for future
+  environment-specific deployment commands
 
 ## Project Structure
 

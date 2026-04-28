@@ -14,10 +14,7 @@ class RedactionPlanner:
         decisions: list[RedactionDecision],
         layout: DocumentLayout,
     ) -> RedactionPlan:
-        page_sizes = {
-            page.page_number: (page.width, page.height)
-            for page in layout.pages
-        }
+        page_sizes = {page.page_number: (page.width, page.height) for page in layout.pages}
         regions: list[RedactionRegion] = []
 
         for decision in decisions:

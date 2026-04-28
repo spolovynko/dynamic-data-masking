@@ -82,9 +82,7 @@ class Settings(BaseSettings):
     @property
     def resolved_presidio_entities(self) -> tuple[str, ...]:
         return tuple(
-            entity.strip().upper()
-            for entity in self.presidio_entities.split(",")
-            if entity.strip()
+            entity.strip().upper() for entity in self.presidio_entities.split(",") if entity.strip()
         )
 
 

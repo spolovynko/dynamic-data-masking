@@ -80,8 +80,7 @@ def get_redacted_text(
 
     try:
         pages = [
-            TextPageResponse(page_number=page.number + 1, text=page.get_text())
-            for page in document
+            TextPageResponse(page_number=page.number + 1, text=page.get_text()) for page in document
         ]
     finally:
         document.close()

@@ -65,9 +65,7 @@ def _apply_lightweight_schema_upgrades(engine: Engine) -> None:
     if not inspector.has_table("document_jobs"):
         return
 
-    existing_columns = {
-        column["name"] for column in inspector.get_columns("document_jobs")
-    }
+    existing_columns = {column["name"] for column in inspector.get_columns("document_jobs")}
     upgrades = {
         "owner_user_id": "ALTER TABLE document_jobs ADD COLUMN owner_user_id TEXT",
     }

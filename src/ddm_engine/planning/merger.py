@@ -11,7 +11,7 @@ DETERMINISTIC_LABEL_PRIORITY = {
     "PHONE_NUMBER": 95,
     "US_SSN": 100,
     "IP_ADDRESS": 90,
-    "SECRET": 100,
+    "SECRET": 100,  # nosec B105
 }
 SPECIAL_CATEGORY_LABELS = {category.value for category in SensitiveCategory}
 GENERIC_LABEL_PRIORITY = {
@@ -119,6 +119,5 @@ def _decision_reason(group: list[CandidateEntity], selected: CandidateEntity) ->
     labels = ", ".join(sorted({candidate.label for candidate in group}))
     detectors = ", ".join(sorted({candidate.detector.value for candidate in group}))
     return (
-        f"Merged overlapping detections from {detectors}; "
-        f"selected {selected.label} over {labels}."
+        f"Merged overlapping detections from {detectors}; selected {selected.label} over {labels}."
     )

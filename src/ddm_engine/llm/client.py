@@ -5,6 +5,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 from ddm_engine.config import Settings
 from ddm_engine.llm.prompts import SYSTEM_PROMPT
@@ -32,6 +33,10 @@ class OllamaClient:
         )
 
     def generate_json(self, prompt: str) -> str:
+        endpoint = f"{self.base_url}/api/generate"
+        if urlparse(endpoint).scheme not in {"http", "https"}:
+            raise LLMClientError("Ollama base URL must use http or https")
+
         payload = {
             "model": self.model,
             "system": SYSTEM_PROMPT,
@@ -41,7 +46,7 @@ class OllamaClient:
             "options": {"temperature": self.temperature},
         }
         request = urllib.request.Request(
-            f"{self.base_url}/api/generate",
+            endpoint,
             data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -49,7 +54,10 @@ class OllamaClient:
 
         started_at = time.perf_counter()
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with urllib.request.urlopen(  # nosec B310
+                request,
+                timeout=self.timeout_seconds,
+            ) as response:
                 response_payload = json.loads(response.read().decode())
         except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
             LLM_CALLS_TOTAL.labels(

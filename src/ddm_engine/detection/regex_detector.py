@@ -36,7 +36,9 @@ class RegexDetector:
             ),
             RegexPattern(
                 label="PHONE_NUMBER",
-                pattern=re.compile(r"\b(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?){2,5}\d{2,4}\b"),
+                pattern=re.compile(
+                    r"\b(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?){2,5}\d{2,4}\b"
+                ),
                 confidence=0.75,
             ),
             RegexPattern(
