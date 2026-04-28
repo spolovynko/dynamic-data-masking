@@ -2,105 +2,143 @@
 
 [![CI/CD](https://github.com/spolovynko/dynamic-data-masking/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/spolovynko/dynamic-data-masking/actions/workflows/ci-cd.yml)
 
-Dynamic Data Masking is a Python/FastAPI document redaction platform. It accepts
-PDF, DOCX, TXT, and image uploads, extracts text and coordinates, detects
-personal or sensitive data, plans black-box redactions, permanently redacts the
-document, verifies that sensitive text is no longer extractable, and serves the
-redacted PDF for download.
+Dynamic Data Masking is a Python document redaction platform for finding and permanently hiding sensitive information in uploaded files.
 
-The project is built as a reusable redaction engine plus thin API and worker
-apps, so the engine can also be used from tests, CLIs, or future batch jobs.
+The application accepts documents, extracts their text, detects private or sensitive data, maps each detection back to the document layout, applies black-box redactions, verifies that the sensitive text is no longer extractable, and returns a redacted PDF.
 
-## Features
+It is built around a reusable redaction engine with a thin FastAPI layer and background worker, so the core document-processing logic can be used from the API, tests, workers, or future command-line tools.
 
-- FastAPI backend with upload, job status, detection, review, redaction plan,
-  verification, text preview, metrics, and download endpoints.
-- Browser frontend served from the API at `http://127.0.0.1:8000/`.
-- Celery worker with Redis queueing.
-- PostgreSQL-ready metadata storage with SQLite local fallback.
-- Local object storage abstraction for originals, extracted layouts,
-  detections, review overrides, plans, verification reports, and redacted PDFs.
-- Native PDF text extraction with word-level coordinates through PyMuPDF.
-- OCR fallback for scanned PDFs and image uploads through Tesseract/PyMuPDF.
-- DOCX and TXT extraction with synthetic layout generation.
-- Regex detector for deterministic values such as email, phone, IBAN, credit
-  cards, and secrets.
-- Presidio detector, intentionally configurable and currently recommended for
-  names only.
-- Ollama-backed LLM detector for contextual sensitive categories such as health,
-  religion, politics, trade union membership, racial or ethnic origin, national
-  origin, addresses, criminal history, biometrics, and sexual orientation.
-- Human review controls to mask or skip detections before regenerating the
-  redacted output.
-- Post-redaction verification to catch extractable sensitive text leakage.
-- Structured JSON logs, request/correlation IDs, Prometheus metrics, and
-  optional Prometheus/Grafana Compose profile.
-- Alembic migration scaffold.
+## Why This Project Exists
 
-## Architecture
+Many systems can detect sensitive text, and many PDF tools can draw black boxes. A safe redaction platform needs more than that.
+
+This project focuses on the full redaction lifecycle:
+
+- extracting text from native PDFs, images, scanned documents, DOCX, and TXT files
+- detecting deterministic PII such as emails, phone numbers, IDs, and secrets
+- detecting contextual sensitive data such as health, religion, politics, union membership, nationality, race, sexuality, criminal history, biometrics, and addresses
+- mapping detections to page coordinates
+- permanently removing sensitive content from the output document
+- verifying the redacted file before allowing download
+- exposing job progress, extracted text, redacted text, and download state through a browser UI
+
+The goal is not only to identify sensitive data, but to produce a document that is safer to share.
+
+## What It Does
+
+- Upload PDF, DOCX, TXT, or image files through a browser frontend.
+- Extract native PDF text with word-level coordinates using PyMuPDF.
+- Run OCR fallback for scanned PDFs and image uploads.
+- Detect structured personal data with regex-based detectors.
+- Use Presidio conservatively for selected PII, currently focused on names.
+- Use an Ollama-backed LLM for contextual sensitive categories.
+- Merge detector outputs into final redaction decisions.
+- Plan redaction boxes from token and page coordinates.
+- Permanently redact PDFs instead of only drawing overlays.
+- Generate extracted and redacted text views before download.
+- Verify that redacted sensitive text is no longer extractable.
+- Track jobs, artifacts, metrics, and logs for operational visibility.
+
+## How It Works
 
 ```text
-browser frontend
+Browser Frontend
     |
     v
-FastAPI API ------ PostgreSQL or SQLite metadata
-    |                         |
-    |                         v
-    |                  document_jobs
+FastAPI API
     |
-    +------ local object store
-    |       originals/
-    |       extracted/
-    |       detections/
-    |       reviews/
-    |       plans/
-    |       quality/
-    |       redacted/
-    |
-    v
-Redis queue
-    |
-    v
-Celery worker
-    |
-    +-- extraction: PDF text, OCR, DOCX, TXT
-    +-- detection: regex, Presidio, LLM
-    +-- planning: merge detections and boxes
-    +-- rendering: permanent PDF redaction
-    +-- quality: post-redaction verification
+    +--> Metadata Database
+    +--> Object Storage
+    +--> Redis Queue
+              |
+              v
+        Celery Worker
+              |
+              +--> Extract text and layout
+              +--> Run OCR when needed
+              +--> Detect sensitive data
+              +--> Ask LLM about contextual cases
+              +--> Merge decisions
+              +--> Plan redaction boxes
+              +--> Apply permanent redaction
+              +--> Verify output safety
 ```
 
-## Requirements
+The backend stores metadata in PostgreSQL or SQLite, stores document artifacts in a local object-store abstraction, and runs long document-processing work in a Celery worker.
+
+The LLM is intentionally not the whole redaction engine. It is used as a controlled decision component for semantic cases that deterministic detectors cannot reliably identify. It receives small context windows, returns structured JSON, and its output is validated before being trusted.
+
+## Redaction Workflow
+
+1. A user uploads a document.
+2. The API validates the file and stores the original artifact.
+3. A background job is queued.
+4. The worker extracts text and page layout.
+5. OCR runs if the document is scanned or image-based.
+6. Regex, Presidio, and LLM detectors produce candidate findings.
+7. Candidates are merged into final redaction decisions.
+8. The planner maps decisions to page coordinates.
+9. The renderer applies permanent black-box redactions.
+10. The verifier checks the redacted file for sensitive text leakage.
+11. The frontend shows progress, extracted text, redacted text, previews, and download state.
+
+## Technology Stack
 
 - Python 3.11+
-- uv
-- Docker Desktop for the containerized stack
-- Redis when running workers locally
-- PostgreSQL optional, SQLite is used by default
-- Ollama optional, only needed when LLM detection is enabled
-- Tesseract optional for local OCR; the Docker image installs it automatically
+- FastAPI
+- Celery
+- Redis
+- PostgreSQL, with SQLite fallback for local development
+- SQLAlchemy and Alembic
+- PyMuPDF
+- Tesseract OCR
+- Presidio Analyzer
+- Ollama for local LLM support
+- Pydantic and pydantic-settings
+- Prometheus metrics
+- Docker and Docker Compose
+- GitHub Actions CI/CD
+
+## Project Structure
+
+```text
+frontend/                    Browser UI served by FastAPI
+src/apps/api/                FastAPI app, routes, schemas, middleware
+src/apps/worker/             Celery worker entrypoint
+src/ddm_engine/extraction/   PDF, OCR, DOCX, TXT extraction
+src/ddm_engine/detection/    Regex, Presidio, LLM detection
+src/ddm_engine/llm/          Ollama client, prompts, schemas, safety
+src/ddm_engine/planning/     Detection merging and redaction planning
+src/ddm_engine/rendering/    Permanent PDF redaction
+src/ddm_engine/quality/      Post-redaction verification
+src/ddm_engine/storage/      Database, repositories, object storage
+src/ddm_engine/observability/Logging, metrics, tracing-ready helpers
+tests/                       Unit and API tests
+migrations/                  Alembic migrations
+docker/                      Prometheus and local ops configuration
+```
 
 ## Quick Start With Docker
 
-Start API, Redis, and worker:
+Build and start the API, Redis, and worker:
 
 ```powershell
 docker compose up -d --build
 ```
 
-Open the app:
+Open the browser app:
 
 ```text
 http://127.0.0.1:8000/
 ```
 
-Open API docs:
+Open API documentation:
 
 ```text
 http://127.0.0.1:8000/docs
 ```
 
-Check health:
+Check API health:
 
 ```powershell
 curl.exe http://127.0.0.1:8000/api/health
@@ -120,7 +158,7 @@ Run the API:
 uv run ddm-api
 ```
 
-Run the worker when Redis is available:
+Run the worker:
 
 ```powershell
 uv run ddm-worker
@@ -130,10 +168,11 @@ Run tests and linting:
 
 ```powershell
 uv run pytest
+uv run ruff format --check .
 uv run ruff check .
 ```
 
-Run migrations:
+Run database migrations:
 
 ```powershell
 uv run alembic upgrade head
@@ -141,60 +180,70 @@ uv run alembic upgrade head
 
 ## Configuration
 
-Configuration is read from environment variables. See `.env.example`.
+Configuration is read from environment variables. See `.env.example` for a local template.
 
-Important variables:
+Common variables:
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `DDM_DATA_ROOT` | Local data root | `data` |
-| `DDM_DATABASE_URL` | Metadata DB URL | SQLite under data root |
-| `DDM_QUEUE_BROKER_URL` | Celery broker | `redis://localhost:6379/0` |
+| `DDM_DATA_ROOT` | Local data directory | `data` |
+| `DDM_DATABASE_URL` | Metadata database URL | SQLite under `data` |
+| `DDM_QUEUE_BROKER_URL` | Celery broker URL | `redis://localhost:6379/0` |
 | `DDM_QUEUE_RESULT_BACKEND` | Celery result backend | `redis://localhost:6379/1` |
-| `DDM_PRESIDIO_ENABLED` | Enable Presidio | `false` |
-| `DDM_PRESIDIO_ENTITIES` | Presidio entities | `PERSON` |
-| `DDM_LLM_ENABLED` | Enable Ollama LLM detector | `false` |
-| `DDM_OLLAMA_BASE_URL` | Ollama endpoint | `http://127.0.0.1:11434` |
-| `DDM_OLLAMA_MODEL` | Ollama model | `qwen2.5:3b` |
+| `DDM_PRESIDIO_ENABLED` | Enable Presidio detection | `false` |
+| `DDM_PRESIDIO_ENTITIES` | Presidio entity list | `PERSON` |
+| `DDM_LLM_ENABLED` | Enable LLM detection | `false` |
+| `DDM_OLLAMA_BASE_URL` | Ollama API URL | `http://127.0.0.1:11434` |
+| `DDM_OLLAMA_MODEL` | Ollama model name | `qwen2.5:3b` |
 | `DDM_OCR_ENABLED` | Enable OCR fallback | `true` |
 | `DDM_OCR_LANGUAGE` | Tesseract language | `eng` |
-| `DDM_WORKER_METRICS_PORT` | Worker metrics port | `9101` |
 
-Example PostgreSQL configuration:
+Example PostgreSQL URL:
 
 ```powershell
 $env:DDM_DATABASE_URL = "postgresql+psycopg://ddm:ddm@localhost:5432/ddm"
 ```
 
-When PostgreSQL runs on the Windows host and the app runs in Docker Desktop, use
-`host.docker.internal` instead of `localhost`.
+When the app runs in Docker Desktop and PostgreSQL runs on the Windows host, use `host.docker.internal` instead of `localhost`.
 
-## LLM Detection
+## LLM Support
 
-The LLM is not the redaction engine. It is only a contextual detector for
-ambiguous or semantic sensitive data. Deterministic patterns such as email,
-phone, IBAN, credit cards, and secrets are handled by regex and do not need the
-LLM.
+The LLM layer helps detect contextual sensitive data that simple pattern matching cannot handle well.
 
-Enable Ollama-backed detection:
+Examples include:
+
+- health conditions and medical history
+- religion or philosophical belief
+- political affiliation or belief
+- trade union membership
+- race, ethnicity, nationality, or national origin
+- sexuality or sexual orientation
+- criminal history
+- biometric identifiers
+- personal addresses
+
+The LLM receives only small snippets around candidate text or page context. It must return strict structured JSON, and the backend validates that response before merging it into the final redaction decision.
+
+Enable LLM detection with Ollama:
 
 ```powershell
 $env:DDM_LLM_ENABLED = "true"
 $env:DDM_OLLAMA_MODEL = "qwen2.5:3b"
-$env:DDM_LLM_TIMEOUT_SECONDS = "120"
 docker compose up -d --build
 ```
 
-For Docker Compose, `DDM_OLLAMA_BASE_URL` defaults to
-`http://host.docker.internal:11434`, so containers can reach Ollama running on
-the Windows host.
+For Docker Compose, the Ollama base URL should point from the container to the host:
 
-## API Endpoints
+```text
+http://host.docker.internal:11434
+```
+
+## API Overview
+
+Main endpoints:
 
 - `GET /`
-- `GET /metrics`
 - `GET /api/health`
-- `GET /api/metrics`
 - `POST /api/documents`
 - `GET /api/jobs/{job_id}`
 - `POST /api/jobs/{job_id}/process`
@@ -206,56 +255,26 @@ the Windows host.
 - `POST /api/jobs/{job_id}/redaction-plan/rebuild`
 - `GET /api/jobs/{job_id}/verification`
 - `GET /api/jobs/{job_id}/download`
+- `GET /metrics`
 
-The API is authentication-ready through an optional `x-user-id` header. Jobs
-uploaded with an owner are only returned to requests with the same owner header.
-A real auth provider can replace this dependency later.
-
-## Redaction Workflow
-
-1. User uploads a PDF, DOCX, TXT, or image.
-2. API validates and stores the original file.
-3. API queues a Celery job.
-4. Worker extracts text and word coordinates.
-5. OCR runs when needed for scanned PDFs or image uploads.
-6. Regex, Presidio, and optional LLM detectors produce candidates.
-7. Detection candidates are merged into redaction decisions.
-8. Redaction regions are planned from token coordinates.
-9. Redaction is permanently applied to a PDF output.
-10. The verifier re-extracts text and checks for sensitive-value leakage.
-11. The frontend shows extracted text, detections, redacted text, verification
-    status, and the download link.
-
-## Object Store Layout
-
-```text
-data/objects/originals/{job_id}/original.*
-data/objects/extracted/{job_id}/layout.json
-data/objects/detections/{job_id}/candidates.json
-data/objects/reviews/{job_id}/overrides.json
-data/objects/plans/{job_id}/redaction_plan.json
-data/objects/quality/{job_id}/verification.json
-data/objects/redacted/{job_id}/redacted.pdf
-```
+The API is authentication-ready through an optional `x-user-id` header. A real identity provider can replace this dependency later.
 
 ## Observability
 
-The API and worker emit structured JSON logs to stdout. API responses include:
+The application emits structured JSON logs with request IDs, correlation IDs, job IDs, and processing stages.
 
-- `x-request-id`
-- `x-correlation-id`
+Prometheus metrics cover:
 
-Prometheus metrics:
-
-```text
-http://127.0.0.1:8000/metrics
-http://127.0.0.1:8000/api/metrics
-http://127.0.0.1:9101/
-```
-
-Metrics cover API traffic, uploads, queued jobs, worker duration/failures, OCR,
-detection counts, LLM calls/latency/validation failures, redactions, redaction
-verification, leakage, and human overrides.
+- API request duration
+- uploaded document count
+- queued and completed jobs
+- worker duration and failures
+- OCR duration and confidence
+- detection counts by label and detector
+- LLM calls, latency, and validation failures
+- redactions applied
+- verification failures and leakage checks
+- human review overrides
 
 Start Prometheus and Grafana:
 
@@ -277,53 +296,64 @@ http://127.0.0.1:3000/
 
 ## CI/CD
 
-GitHub Actions workflow:
+The GitHub Actions workflow is defined in:
 
 ```text
 .github/workflows/ci-cd.yml
 ```
 
-The pipeline runs on pull requests, pushes to `main`, and manual dispatch. It
-contains:
+It runs on pull requests, pushes to `main`, and manual dispatch.
 
-- lint and test job: uv sync, Ruff format check, Ruff lint, Pytest
-- security job: Bandit source scan and pip-audit dependency audit
-- Docker job: Buildx build, API health smoke test, and GHCR image push on `main`
-- deployment placeholder: manual `dev`, `staging`, or `prod` gate for future
-  environment-specific deployment commands
+Pipeline stages:
 
-## Project Structure
+- install dependencies with `uv`
+- check formatting with Ruff
+- run Ruff linting
+- run the test suite
+- scan source code with Bandit
+- audit dependencies with pip-audit
+- build the Docker image
+- run an API smoke test
+- push the image to GitHub Container Registry on `main`
+- provide a manual deploy gate for dev, staging, or production
 
-```text
-frontend/                    browser UI
-src/apps/api/                FastAPI app, routes, schemas
-src/apps/worker/             Celery worker
-src/ddm_engine/extraction/   PDF, OCR, DOCX, TXT extraction
-src/ddm_engine/detection/    regex, Presidio, LLM detection
-src/ddm_engine/llm/          Ollama client, prompts, schemas, router, safety
-src/ddm_engine/planning/     detection merge and redaction planning
-src/ddm_engine/rendering/    permanent PDF redaction
-src/ddm_engine/quality/      post-redaction verification
-src/ddm_engine/storage/      database, object store, repositories
-src/ddm_engine/observability/logging, metrics, middleware
-tests/                       unit and API tests
-migrations/                  Alembic migrations
-docker/                      local ops config
-```
+## Current Status
 
-## Current Limits
+The project currently supports the core local redaction workflow:
 
-- OCR quality depends on the source image and Tesseract language data.
-- DOCX/TXT outputs are rendered into a simple synthetic PDF layout for redaction.
-- The auth-ready header is not a full authentication system.
+- browser upload
+- background processing
+- text extraction
+- OCR fallback
+- regex detection
+- conservative Presidio detection
+- optional Ollama LLM detection
+- review overrides
+- permanent PDF redaction
+- post-redaction verification
+- Docker-based local stack
+- CI/CD pipeline
+
+## Known Limits
+
+- OCR accuracy depends on document quality and installed language data.
+- DOCX and TXT files are rendered into a simplified PDF layout for redaction.
 - Object storage is local-only today.
-- Grafana dashboard JSON is not checked in yet.
+- The `x-user-id` header is an auth-ready placeholder, not a full authentication system.
+- The deployment job is intentionally a placeholder until a target infrastructure is selected.
+- Grafana dashboard JSON and alert rules are not checked in yet.
 
-## Next Steps
+## Roadmap
 
-- Add real auth and per-user job listing.
+- Add full authentication and authorization.
 - Add S3-compatible object storage.
-- Add richer OCR confidence and visual page previews.
-- Add a Grafana dashboard file and alert rules.
-- Add CI security checks and Docker image publishing.
-- Add manual rectangle drawing in the frontend for custom redactions.
+- Add first-class document preview snapshots.
+- Add manual rectangle drawing in the frontend.
+- Add Grafana dashboards and alert rules.
+- Add production deployment commands to CI/CD.
+- Expand fixture-based end-to-end redaction tests.
+- Add richer DOCX handling.
+
+## Safety Note
+
+This project is designed to reduce sensitive-data exposure, but no automated redaction system should be trusted blindly for high-risk documents. Verification, review workflows, and careful detector tuning are part of the product design.
