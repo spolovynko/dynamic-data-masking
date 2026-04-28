@@ -72,7 +72,8 @@ h2 {
 }
 
 .docs-link,
-button {
+button,
+.download-link {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--panel);
@@ -94,13 +95,31 @@ button[type="submit"],
 }
 
 button:hover:not(:disabled),
-.docs-link:hover {
+.docs-link:hover,
+.download-link:hover {
   border-color: var(--accent-dark);
 }
 
-button:disabled {
+button:disabled,
+.download-link.is-disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.download-link {
+  display: block;
+  margin-top: 14px;
+  text-align: center;
+}
+
+.download-link:not(.is-disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.download-link.is-disabled {
+  pointer-events: none;
 }
 
 .work-grid {
@@ -110,11 +129,20 @@ button:disabled {
 }
 
 .upload-panel,
-.status-panel {
+.status-panel,
+.detections-panel,
+.plan-panel,
+.text-panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 18px;
+}
+
+.detections-panel,
+.plan-panel,
+.text-panel {
+  grid-column: 1 / -1;
 }
 
 .section-heading {
@@ -242,6 +270,87 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+.text-view {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafb;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.empty-state {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  padding: 16px;
+  text-align: center;
+}
+
+.detections-list,
+.plan-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detection-item,
+.plan-item {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.detection-heading,
+.detection-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detection-heading strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.detection-heading span {
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.detection-item p {
+  margin: 8px 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.detection-meta {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+}
+
+.review-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.review-actions button {
+  min-width: 72px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
 @media (max-width: 760px) {
   .app-shell {
     padding: 14px;
@@ -249,7 +358,9 @@ button:disabled {
 
   .topbar,
   .work-grid,
-  .job-output {
+  .job-output,
+  .detections-list,
+  .plan-list {
     grid-template-columns: 1fr;
   }
 

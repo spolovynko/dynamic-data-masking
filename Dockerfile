@@ -21,6 +21,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd --create-home --shell /usr/sbin/nologin appuser
 
 COPY pyproject.toml uv.lock README.md ./
@@ -34,7 +39,7 @@ RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8000 9101
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import os, urllib.request; port=os.getenv('DDM_API_PORT', '8000'); urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health', timeout=2).read()"

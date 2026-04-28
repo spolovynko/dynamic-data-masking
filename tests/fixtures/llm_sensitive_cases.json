@@ -1,0 +1,12 @@
+[
+  {"text": "Patient has diabetes and requires insulin.", "expected_label": "HEALTH_DATA"},
+  {"text": "Employee is a member of the steelworkers trade union.", "expected_label": "TRADE_UNION_MEMBERSHIP"},
+  {"text": "Applicant disclosed a prior burglary conviction.", "expected_label": "CRIMINAL_HISTORY"},
+  {"text": "Access is granted after a fingerprint scan.", "expected_label": "BIOMETRIC_DATA"},
+  {"text": "Home address: 221B Baker Street, London NW1 6XE.", "expected_label": "PHYSICAL_ADDRESS"},
+  {"text": "The record describes her Catholic faith.", "expected_label": "RELIGION_OR_BELIEF"},
+  {"text": "The note mentions support for the Green Party.", "expected_label": "POLITICAL_BELIEF"},
+  {"text": "The form asks for racial or ethnic origin.", "expected_label": "RACIAL_OR_ETHNIC_ORIGIN"},
+  {"text": "Nationality: Belgian.", "expected_label": "NATIONALITY_OR_NATIONAL_ORIGIN"},
+  {"text": "Sexual orientation was disclosed in the HR note.", "expected_label": "SEXUAL_ORIENTATION"}
+]

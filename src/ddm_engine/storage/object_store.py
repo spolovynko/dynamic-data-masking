@@ -28,6 +28,9 @@ class ObjectStore(Protocol):
     def exists(self, key: str) -> bool:
         raise NotImplementedError
 
+    def delete_prefix(self, prefix: str) -> None:
+        raise NotImplementedError
+
 
 class LocalObjectStore:
     def __init__(self, root: Path) -> None:
@@ -50,6 +53,11 @@ class LocalObjectStore:
 
     def exists(self, key: str) -> bool:
         return self._path_for_key(key).exists()
+
+    def delete_prefix(self, prefix: str) -> None:
+        path = self._path_for_key(prefix)
+        shutil.rmtree(path, ignore_errors=True)
+        self._remove_empty_parents(path.parent)
 
     def _path_for_key(self, key: str) -> Path:
         relative_path = Path(key)

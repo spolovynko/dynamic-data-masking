@@ -219,3 +219,4 @@ __marimo__/
 
 # Local uploaded documents and generated artifacts
 data/
+*-redacted.pdf

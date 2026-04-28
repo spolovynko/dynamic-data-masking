@@ -15,12 +15,21 @@ services:
       DDM_API_RELOAD: "false"
       DDM_ENVIRONMENT: compose
       DDM_DATA_ROOT: /app/data
-      DDM_DATABASE_URL: sqlite:////app/data/metadata.sqlite3
+      DDM_DATABASE_URL: ${DDM_DATABASE_URL:-sqlite:////app/data/metadata.sqlite3}
       DDM_OBJECT_STORE_BACKEND: local
       DDM_OBJECT_STORE_ROOT: /app/data/objects
       DDM_QUEUE_BROKER_URL: redis://redis:6379/0
       DDM_QUEUE_RESULT_BACKEND: redis://redis:6379/1
       DDM_QUEUE_NAME: ddm
+      DDM_PRESIDIO_ENABLED: ${DDM_PRESIDIO_ENABLED:-false}
+      DDM_PRESIDIO_ENTITIES: ${DDM_PRESIDIO_ENTITIES:-PERSON}
+      DDM_LLM_ENABLED: ${DDM_LLM_ENABLED:-false}
+      DDM_LLM_PROVIDER: ollama
+      DDM_OLLAMA_BASE_URL: ${DDM_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      DDM_OLLAMA_MODEL: ${DDM_OLLAMA_MODEL:-qwen2.5:3b}
+      DDM_LLM_TEMPERATURE: ${DDM_LLM_TEMPERATURE:-0}
+      DDM_LLM_MAX_CONTEXT_CHARS: ${DDM_LLM_MAX_CONTEXT_CHARS:-1200}
+      DDM_LLM_TIMEOUT_SECONDS: ${DDM_LLM_TIMEOUT_SECONDS:-120}
     ports:
       - "8000:8000"
     volumes:
@@ -31,18 +40,55 @@ services:
     depends_on:
       - redis
     command: ["/app/.venv/bin/ddm-worker"]
+    healthcheck:
+      disable: true
     environment:
       DDM_ENVIRONMENT: compose
       DDM_DATA_ROOT: /app/data
-      DDM_DATABASE_URL: sqlite:////app/data/metadata.sqlite3
+      DDM_DATABASE_URL: ${DDM_DATABASE_URL:-sqlite:////app/data/metadata.sqlite3}
       DDM_OBJECT_STORE_BACKEND: local
       DDM_OBJECT_STORE_ROOT: /app/data/objects
       DDM_QUEUE_BROKER_URL: redis://redis:6379/0
       DDM_QUEUE_RESULT_BACKEND: redis://redis:6379/1
       DDM_QUEUE_NAME: ddm
       DDM_WORKER_POOL: solo
+      DDM_WORKER_METRICS_PORT: ${DDM_WORKER_METRICS_PORT:-9101}
+      DDM_OCR_ENABLED: ${DDM_OCR_ENABLED:-true}
+      DDM_OCR_LANGUAGE: ${DDM_OCR_LANGUAGE:-eng}
+      DDM_OCR_DPI: ${DDM_OCR_DPI:-200}
+      DDM_OCR_MIN_NATIVE_TOKENS: ${DDM_OCR_MIN_NATIVE_TOKENS:-1}
+      DDM_PRESIDIO_ENABLED: ${DDM_PRESIDIO_ENABLED:-false}
+      DDM_PRESIDIO_ENTITIES: ${DDM_PRESIDIO_ENTITIES:-PERSON}
+      DDM_LLM_ENABLED: ${DDM_LLM_ENABLED:-false}
+      DDM_LLM_PROVIDER: ollama
+      DDM_OLLAMA_BASE_URL: ${DDM_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      DDM_OLLAMA_MODEL: ${DDM_OLLAMA_MODEL:-qwen2.5:3b}
+      DDM_LLM_TEMPERATURE: ${DDM_LLM_TEMPERATURE:-0}
+      DDM_LLM_MAX_CONTEXT_CHARS: ${DDM_LLM_MAX_CONTEXT_CHARS:-1200}
+      DDM_LLM_TIMEOUT_SECONDS: ${DDM_LLM_TIMEOUT_SECONDS:-120}
     volumes:
       - ddm-data:/app/data
+    ports:
+      - "9101:9101"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["observability"]
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    profiles: ["observability"]
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    ports:
+      - "3000:3000"
 
 volumes:
   ddm-data:

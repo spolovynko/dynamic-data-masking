@@ -26,6 +26,14 @@ class DocumentJobRepository(Protocol):
     ) -> JobRecord:
         raise NotImplementedError
 
+    def update_redacted_output(
+        self,
+        job_id: str,
+        redacted_object_key: str,
+        status: JobStatus,
+    ) -> JobRecord:
+        raise NotImplementedError
+
 
 class SqlAlchemyDocumentJobRepository:
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
@@ -48,6 +56,7 @@ class SqlAlchemyDocumentJobRepository:
                 size_bytes=job.size_bytes,
                 redacted_object_key=job.redacted_object_key,
                 failure_reason=job.failure_reason,
+                owner_user_id=job.owner_user_id,
                 created_at=job.created_at,
                 updated_at=job.updated_at,
             )
@@ -81,6 +90,25 @@ class SqlAlchemyDocumentJobRepository:
             session.refresh(model)
             return _job_from_model(model)
 
+    def update_redacted_output(
+        self,
+        job_id: str,
+        redacted_object_key: str,
+        status: JobStatus,
+    ) -> JobRecord:
+        with self.session_factory() as session:
+            model = session.get(DocumentJobModel, job_id)
+            if model is None:
+                raise JobNotFoundError(f"Job not found: {job_id}")
+
+            model.status = status.value
+            model.redacted_object_key = redacted_object_key
+            model.failure_reason = None
+            model.updated_at = datetime.now(UTC)
+            session.commit()
+            session.refresh(model)
+            return _job_from_model(model)
+
 
 def _job_from_model(model: DocumentJobModel) -> JobRecord:
     return JobRecord(
@@ -95,4 +123,5 @@ def _job_from_model(model: DocumentJobModel) -> JobRecord:
         failure_reason=model.failure_reason,
         created_at=model.created_at,
         updated_at=model.updated_at,
+        owner_user_id=model.owner_user_id,
     )

@@ -21,12 +21,12 @@
           <section class="upload-panel" aria-labelledby="uploadTitle">
             <div class="section-heading">
               <h2 id="uploadTitle">Document</h2>
-              <span id="fileTypeHint">PDF or TXT</span>
+              <span id="fileTypeHint">PDF, DOCX, TXT, or image</span>
             </div>
 
             <form id="uploadForm">
               <label id="dropZone" class="drop-zone" for="fileInput">
-                <input id="fileInput" name="file" type="file" accept=".pdf,.txt" />
+                <input id="fileInput" name="file" type="file" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.tif,.tiff" />
                 <span class="drop-icon" aria-hidden="true">+</span>
                 <span id="fileName">Drop file or choose one</span>
               </label>
@@ -66,7 +66,59 @@
               </div>
             </div>
 
+            <a id="downloadLink" class="download-link is-disabled" href="#" aria-disabled="true">
+              Download redacted PDF
+            </a>
+
             <pre id="eventLog" class="event-log"></pre>
+          </section>
+
+          <section class="detections-panel" aria-labelledby="detectionsTitle">
+            <div class="section-heading">
+              <h2 id="detectionsTitle">Detections</h2>
+              <span id="detectionCount">0 candidates</span>
+            </div>
+
+            <div id="emptyDetections" class="empty-state">
+              Process a document to see detected sensitive data.
+            </div>
+            <div id="detectionsList" class="detections-list" aria-live="polite"></div>
+          </section>
+
+          <section class="text-panel" aria-labelledby="sourceTextTitle">
+            <div class="section-heading">
+              <h2 id="sourceTextTitle">Extracted Text</h2>
+              <span id="sourceTextCount">0 characters</span>
+            </div>
+
+            <div id="emptySourceText" class="empty-state">
+              Extracted document text will appear after processing.
+            </div>
+            <pre id="sourceText" class="text-view" hidden></pre>
+          </section>
+
+          <section class="plan-panel" aria-labelledby="planTitle">
+            <div class="section-heading">
+              <h2 id="planTitle">Redaction Plan</h2>
+              <span id="planCount">0 decisions</span>
+            </div>
+
+            <div id="emptyPlan" class="empty-state">
+              Final redaction decisions will appear after planning.
+            </div>
+            <div id="planList" class="plan-list" aria-live="polite"></div>
+          </section>
+
+          <section class="text-panel" aria-labelledby="redactedTextTitle">
+            <div class="section-heading">
+              <h2 id="redactedTextTitle">Redacted Text</h2>
+              <span id="redactedTextCount">0 characters</span>
+            </div>
+
+            <div id="emptyRedactedText" class="empty-state">
+              Redacted extractable text will appear before download.
+            </div>
+            <pre id="redactedText" class="text-view" hidden></pre>
           </section>
         </div>
       </section>

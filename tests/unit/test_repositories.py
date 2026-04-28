@@ -39,3 +39,13 @@ def test_sqlalchemy_job_repository_create_get_and_update(tmp_path, monkeypatch) 
 
     assert updated.status == JobStatus.FAILED
     assert updated.failure_reason == "boom"
+
+    ready = repository.update_redacted_output(
+        job.job_id,
+        "redacted/job/redacted.pdf",
+        JobStatus.READY,
+    )
+
+    assert ready.status == JobStatus.READY
+    assert ready.redacted_object_key == "redacted/job/redacted.pdf"
+    assert ready.failure_reason is None

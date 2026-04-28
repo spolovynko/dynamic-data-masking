@@ -17,6 +17,12 @@ READ_CHUNK_BYTES = 1024 * 1024
 SUPPORTED_EXTENSIONS = {
     ".pdf": "pdf",
     ".txt": "txt",
+    ".docx": "docx",
+    ".png": "png",
+    ".jpg": "jpg",
+    ".jpeg": "jpeg",
+    ".tif": "tif",
+    ".tiff": "tiff",
 }
 JOB_ID_PATTERN = re.compile(r"^[a-f0-9]{32}$")
 
@@ -71,6 +77,7 @@ class JobRecord:
     failure_reason: str | None
     created_at: datetime
     updated_at: datetime
+    owner_user_id: str | None = None
 
     def to_response_dict(self) -> dict[str, Any]:
         return {
@@ -108,6 +115,13 @@ class JobStore:
         )
 
     async def create_from_upload(self, upload: UploadFile) -> JobRecord:
+        return await self.create_from_upload_for_owner(upload, owner_user_id=None)
+
+    async def create_from_upload_for_owner(
+        self,
+        upload: UploadFile,
+        owner_user_id: str | None,
+    ) -> JobRecord:
         original_filename = _clean_filename(upload.filename)
         extension = Path(original_filename).suffix.lower()
         file_type = SUPPORTED_EXTENSIONS.get(extension)
@@ -145,6 +159,7 @@ class JobStore:
                 failure_reason=None,
                 created_at=timestamp,
                 updated_at=timestamp,
+                owner_user_id=owner_user_id,
             )
             return self.repository.create(record)
         except Exception:
@@ -167,6 +182,16 @@ class JobStore:
         if not JOB_ID_PATTERN.fullmatch(job_id):
             raise JobNotFoundError(f"Job not found: {job_id}")
         return self.repository.update_status(job_id, status, failure_reason=failure_reason)
+
+    def update_redacted_output(
+        self,
+        job_id: str,
+        redacted_object_key: str,
+        status: JobStatus = JobStatus.READY,
+    ) -> JobRecord:
+        if not JOB_ID_PATTERN.fullmatch(job_id):
+            raise JobNotFoundError(f"Job not found: {job_id}")
+        return self.repository.update_redacted_output(job_id, redacted_object_key, status)
 
 
 def _clean_filename(filename: str | None) -> str:
@@ -191,5 +216,13 @@ class DocumentJobRepository:
         job_id: str,
         status: JobStatus,
         failure_reason: str | None = None,
+    ) -> JobRecord:
+        raise NotImplementedError
+
+    def update_redacted_output(
+        self,
+        job_id: str,
+        redacted_object_key: str,
+        status: JobStatus,
     ) -> JobRecord:
         raise NotImplementedError

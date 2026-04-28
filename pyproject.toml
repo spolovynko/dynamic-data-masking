@@ -7,12 +7,17 @@ requires-python = ">=3.11"
 dependencies = [
     "celery[redis]>=5.4.0",
     "fastapi>=0.115.0",
+    "presidio-analyzer>=2.2.0",
     "pydantic-settings>=2.7.0",
     "psycopg[binary]>=3.2.0",
     "pymupdf>=1.25.0",
     "python-multipart>=0.0.12",
     "sqlalchemy>=2.0.0",
     "uvicorn[standard]>=0.32.0",
+    "en-core-web-sm",
+    "prometheus-client>=0.21.0",
+    "python-docx>=1.2.0",
+    "alembic>=1.18.4",
 ]
 
 [project.scripts]
@@ -42,3 +47,6 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.uv.sources]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
