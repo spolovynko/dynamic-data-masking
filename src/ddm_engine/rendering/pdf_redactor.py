@@ -6,8 +6,11 @@ from ddm_engine.extraction.models import DocumentLayout
 from ddm_engine.observability.metrics import REDACTIONS_APPLIED_TOTAL
 from ddm_engine.planning.models import RedactionPlan
 from ddm_engine.rendering.layout_pdf import render_layout_to_pdf_bytes
+from ddm_engine.storage.artifacts import ArtifactKeys, JsonArtifactStore
 from ddm_engine.storage.jobs import JobRecord
 from ddm_engine.storage.object_store import ObjectStore
+
+IMAGE_FILE_TYPES = frozenset({"png", "jpg", "jpeg", "tif", "tiff"})
 
 
 class PDFRedactionError(Exception):
@@ -17,13 +20,12 @@ class PDFRedactionError(Exception):
 class PDFRedactionService:
     def __init__(self, object_store: ObjectStore) -> None:
         self.object_store = object_store
+        self.artifacts = JsonArtifactStore(object_store)
 
     def redact(self, job: JobRecord) -> str:
-        plan = RedactionPlan.model_validate_json(
-            self.object_store.read_bytes(f"plans/{job.job_id}/redaction_plan.json")
-        )
+        plan = self.artifacts.read_model(ArtifactKeys.redaction_plan(job.job_id), RedactionPlan)
         source_bytes, source_filetype = self._source_pdf_bytes(job)
-        redacted_object_key = f"redacted/{job.job_id}/redacted.pdf"
+        redacted_object_key = ArtifactKeys.redacted_pdf(job.job_id)
 
         try:
             document = fitz.open(stream=source_bytes, filetype=source_filetype)
@@ -66,7 +68,7 @@ class PDFRedactionService:
         if job.file_type == "pdf":
             return self.object_store.read_bytes(job.original_object_key), "pdf"
 
-        if job.file_type in {"png", "jpg", "jpeg", "tif", "tiff"}:
+        if job.file_type in IMAGE_FILE_TYPES:
             image_bytes = self.object_store.read_bytes(job.original_object_key)
             try:
                 image_document = fitz.open(stream=image_bytes, filetype=job.file_type)
@@ -78,9 +80,7 @@ class PDFRedactionService:
                 raise PDFRedactionError("Failed to convert image to PDF") from exc
 
         if job.file_type in {"txt", "docx"}:
-            layout = DocumentLayout.model_validate_json(
-                self.object_store.read_bytes(f"extracted/{job.job_id}/layout.json")
-            )
+            layout = self.artifacts.read_model(ArtifactKeys.layout(job.job_id), DocumentLayout)
             return render_layout_to_pdf_bytes(layout), "pdf"
 
         raise PDFRedactionError(f"Unsupported redaction file type: {job.file_type}")

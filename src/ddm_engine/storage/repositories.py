@@ -1,41 +1,16 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Protocol
 
 from sqlalchemy.orm import Session, sessionmaker
 
 from ddm_engine.config import Settings
 from ddm_engine.storage.database import create_session_factory, init_database
-from ddm_engine.storage.jobs import JobNotFoundError, JobRecord, JobStatus
+from ddm_engine.storage.jobs import DocumentJobRepository, JobNotFoundError, JobRecord, JobStatus
 from ddm_engine.storage.models import DocumentJobModel
 
 
-class DocumentJobRepository(Protocol):
-    def create(self, job: JobRecord) -> JobRecord:
-        raise NotImplementedError
-
-    def get(self, job_id: str) -> JobRecord:
-        raise NotImplementedError
-
-    def update_status(
-        self,
-        job_id: str,
-        status: JobStatus,
-        failure_reason: str | None = None,
-    ) -> JobRecord:
-        raise NotImplementedError
-
-    def update_redacted_output(
-        self,
-        job_id: str,
-        redacted_object_key: str,
-        status: JobStatus,
-    ) -> JobRecord:
-        raise NotImplementedError
-
-
-class SqlAlchemyDocumentJobRepository:
+class SqlAlchemyDocumentJobRepository(DocumentJobRepository):
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self.session_factory = session_factory
 
@@ -61,15 +36,11 @@ class SqlAlchemyDocumentJobRepository:
                 updated_at=job.updated_at,
             )
             session.add(model)
-            session.commit()
-            session.refresh(model)
-            return _job_from_model(model)
+            return _commit_and_return(session, model)
 
     def get(self, job_id: str) -> JobRecord:
         with self.session_factory() as session:
-            model = session.get(DocumentJobModel, job_id)
-            if model is None:
-                raise JobNotFoundError(f"Job not found: {job_id}")
+            model = _get_job_model(session, job_id)
             return _job_from_model(model)
 
     def update_status(
@@ -79,16 +50,11 @@ class SqlAlchemyDocumentJobRepository:
         failure_reason: str | None = None,
     ) -> JobRecord:
         with self.session_factory() as session:
-            model = session.get(DocumentJobModel, job_id)
-            if model is None:
-                raise JobNotFoundError(f"Job not found: {job_id}")
-
+            model = _get_job_model(session, job_id)
             model.status = status.value
             model.failure_reason = failure_reason
             model.updated_at = datetime.now(UTC)
-            session.commit()
-            session.refresh(model)
-            return _job_from_model(model)
+            return _commit_and_return(session, model)
 
     def update_redacted_output(
         self,
@@ -97,17 +63,25 @@ class SqlAlchemyDocumentJobRepository:
         status: JobStatus,
     ) -> JobRecord:
         with self.session_factory() as session:
-            model = session.get(DocumentJobModel, job_id)
-            if model is None:
-                raise JobNotFoundError(f"Job not found: {job_id}")
-
+            model = _get_job_model(session, job_id)
             model.status = status.value
             model.redacted_object_key = redacted_object_key
             model.failure_reason = None
             model.updated_at = datetime.now(UTC)
-            session.commit()
-            session.refresh(model)
-            return _job_from_model(model)
+            return _commit_and_return(session, model)
+
+
+def _get_job_model(session: Session, job_id: str) -> DocumentJobModel:
+    model = session.get(DocumentJobModel, job_id)
+    if model is None:
+        raise JobNotFoundError(f"Job not found: {job_id}")
+    return model
+
+
+def _commit_and_return(session: Session, model: DocumentJobModel) -> JobRecord:
+    session.commit()
+    session.refresh(model)
+    return _job_from_model(model)
 
 
 def _job_from_model(model: DocumentJobModel) -> JobRecord:

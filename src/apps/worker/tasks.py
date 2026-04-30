@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 
 from apps.worker.celery_app import celery_app
 from ddm_engine.config import Settings
@@ -21,112 +22,112 @@ from ddm_engine.storage.repositories import SqlAlchemyDocumentJobRepository
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class ProcessingServices:
+    repository: SqlAlchemyDocumentJobRepository
+    extraction: ExtractionService
+    detection: DetectionService
+    planning: RedactionPlanningService
+    redaction: PDFRedactionService
+    quality: RedactionQualityService
+
+
 @celery_app.task(name="ddm.process_document")
 def process_document(job_id: str, correlation_id: str | None = None) -> dict[str, str]:
     started_at = time.perf_counter()
     context_tokens = set_observability_context(correlation_id or job_id, correlation_id or job_id)
-    settings = Settings()
-    repository = SqlAlchemyDocumentJobRepository.from_settings(settings)
-    object_store = create_object_store(settings)
-    extraction_service = ExtractionService(object_store)
-    detection_service = DetectionService(object_store)
-    planning_service = RedactionPlanningService(object_store)
-    redaction_service = PDFRedactionService(object_store)
-    quality_service = RedactionQualityService(object_store)
+    services = _build_processing_services(Settings())
 
     try:
-        job = repository.get(job_id)
+        return _process_job(job_id, started_at, services)
+    finally:
+        reset_observability_context(context_tokens)
+
+
+def _build_processing_services(settings: Settings) -> ProcessingServices:
+    object_store = create_object_store(settings)
+    return ProcessingServices(
+        repository=SqlAlchemyDocumentJobRepository.from_settings(settings),
+        extraction=ExtractionService(object_store),
+        detection=DetectionService(object_store),
+        planning=RedactionPlanningService(object_store),
+        redaction=PDFRedactionService(object_store),
+        quality=RedactionQualityService(object_store),
+    )
+
+
+def _process_job(
+    job_id: str,
+    started_at: float,
+    services: ProcessingServices,
+) -> dict[str, str]:
+    try:
+        job = services.repository.get(job_id)
     except JobNotFoundError:
         logger.warning("Worker received unknown job", extra={"job_id": job_id})
-        reset_observability_context(context_tokens)
         raise
+
+    if job.status == JobStatus.READY and job.redacted_object_key:
+        return {
+            "job_id": job_id,
+            "status": JobStatus.READY.value,
+            "message": "Job is already ready",
+            "redacted_object_key": job.redacted_object_key,
+        }
 
     try:
-        if job.status == JobStatus.READY and job.redacted_object_key:
-            response = {
-                "job_id": job_id,
-                "status": JobStatus.READY.value,
-                "message": "Job is already ready",
-                "redacted_object_key": job.redacted_object_key,
-            }
-            reset_observability_context(context_tokens)
-            return response
-
-        repository.update_status(job_id, JobStatus.EXTRACTING)
+        services.repository.update_status(job_id, JobStatus.EXTRACTING)
         logger.info("Document processing started", extra={"job_id": job_id})
 
-        result = extraction_service.extract_layout(job)
-        repository.update_status(job_id, JobStatus.DETECTING)
-        detection_result = detection_service.detect(job)
-        repository.update_status(job_id, JobStatus.PLANNING_REDACTIONS)
-        redaction_plan = planning_service.plan(job)
-        repository.update_status(job_id, JobStatus.REDACTING)
-        redacted_object_key = redaction_service.redact(job)
-        repository.update_status(job_id, JobStatus.VERIFYING)
-        verification_report = quality_service.verify(job, redacted_object_key)
+        result = services.extraction.extract_layout(job)
+        services.repository.update_status(job_id, JobStatus.DETECTING)
+        detection_result = services.detection.detect(job)
+        services.repository.update_status(job_id, JobStatus.PLANNING_REDACTIONS)
+        redaction_plan = services.planning.plan(job)
+        services.repository.update_status(job_id, JobStatus.REDACTING)
+        redacted_object_key = services.redaction.redact(job)
+        services.repository.update_status(job_id, JobStatus.VERIFYING)
+        verification_report = services.quality.verify(job, redacted_object_key)
 
-        if not quality_service.passed(verification_report):
-            repository.update_status(
-                job_id,
-                JobStatus.FAILED_VERIFICATION,
-                failure_reason="Sensitive text leakage detected after redaction",
-            )
-            JOB_FAILURES_TOTAL.labels(reason="verification_failed").inc()
-            JOB_DURATION_SECONDS.labels(final_status=JobStatus.FAILED_VERIFICATION.value).observe(
-                time.perf_counter() - started_at
-            )
-            response = {
-                "job_id": job_id,
-                "status": JobStatus.FAILED_VERIFICATION.value,
-                "leak_count": str(verification_report.leak_count),
-            }
-            reset_observability_context(context_tokens)
-            return response
+        if not services.quality.passed(verification_report):
+            return _fail_verification(job_id, started_at, services, verification_report.leak_count)
 
-        repository.update_redacted_output(job_id, redacted_object_key, JobStatus.READY)
+        services.repository.update_redacted_output(job_id, redacted_object_key, JobStatus.READY)
     except ExtractionError:
-        repository.update_status(
+        _record_failure(
+            services,
             job_id,
             JobStatus.FAILED,
-            failure_reason="Document extraction failed",
-        )
-        JOB_FAILURES_TOTAL.labels(reason="extraction_failed").inc()
-        JOB_DURATION_SECONDS.labels(final_status=JobStatus.FAILED.value).observe(
-            time.perf_counter() - started_at
+            "extraction_failed",
+            started_at,
+            "Document extraction failed",
         )
         logger.exception("Document processing failed", extra={"job_id": job_id})
-        reset_observability_context(context_tokens)
         raise
     except RedactionVerificationError:
-        repository.update_status(
+        _record_failure(
+            services,
             job_id,
             JobStatus.FAILED_VERIFICATION,
-            failure_reason="Redaction verification failed",
-        )
-        JOB_FAILURES_TOTAL.labels(reason="verification_error").inc()
-        JOB_DURATION_SECONDS.labels(final_status=JobStatus.FAILED_VERIFICATION.value).observe(
-            time.perf_counter() - started_at
+            "verification_error",
+            started_at,
+            "Redaction verification failed",
         )
         logger.exception("Redaction verification failed", extra={"job_id": job_id})
-        reset_observability_context(context_tokens)
         raise
     except Exception:
-        repository.update_status(
+        _record_failure(
+            services,
             job_id,
             JobStatus.FAILED,
-            failure_reason="Document processing failed",
-        )
-        JOB_FAILURES_TOTAL.labels(reason="processing_failed").inc()
-        JOB_DURATION_SECONDS.labels(final_status=JobStatus.FAILED.value).observe(
-            time.perf_counter() - started_at
+            "processing_failed",
+            started_at,
+            "Document processing failed",
         )
         logger.exception("Document processing failed", extra={"job_id": job_id})
-        reset_observability_context(context_tokens)
         raise
 
-    JOB_DURATION_SECONDS.labels(final_status=JobStatus.READY.value).observe(
-        time.perf_counter() - started_at
-    )
+    _record_duration(JobStatus.READY, started_at)
     logger.info(
         "Document processing completed",
         extra={
@@ -137,7 +138,7 @@ def process_document(job_id: str, correlation_id: str | None = None) -> dict[str
             "verification_status": verification_report.status.value,
         },
     )
-    response = {
+    return {
         "job_id": job_id,
         "status": JobStatus.READY.value,
         "layout_object_key": result.layout_object_key,
@@ -149,5 +150,43 @@ def process_document(job_id: str, correlation_id: str | None = None) -> dict[str
         "redacted_object_key": redacted_object_key,
         "verification_status": verification_report.status.value,
     }
-    reset_observability_context(context_tokens)
-    return response
+
+
+def _fail_verification(
+    job_id: str,
+    started_at: float,
+    services: ProcessingServices,
+    leak_count: int,
+) -> dict[str, str]:
+    _record_failure(
+        services,
+        job_id,
+        JobStatus.FAILED_VERIFICATION,
+        "verification_failed",
+        started_at,
+        "Sensitive text leakage detected after redaction",
+    )
+    return {
+        "job_id": job_id,
+        "status": JobStatus.FAILED_VERIFICATION.value,
+        "leak_count": str(leak_count),
+    }
+
+
+def _record_failure(
+    services: ProcessingServices,
+    job_id: str,
+    status: JobStatus,
+    metric_reason: str,
+    started_at: float,
+    failure_reason: str,
+) -> None:
+    services.repository.update_status(job_id, status, failure_reason=failure_reason)
+    JOB_FAILURES_TOTAL.labels(reason=metric_reason).inc()
+    _record_duration(status, started_at)
+
+
+def _record_duration(final_status: JobStatus, started_at: float) -> None:
+    JOB_DURATION_SECONDS.labels(final_status=final_status.value).observe(
+        time.perf_counter() - started_at
+    )

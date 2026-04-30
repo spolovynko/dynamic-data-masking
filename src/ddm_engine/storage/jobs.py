@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from uuid import uuid4
 
 from fastapi import UploadFile
@@ -204,7 +204,7 @@ def _clean_filename(filename: str | None) -> str:
     return cleaned
 
 
-class DocumentJobRepository:
+class DocumentJobRepository(Protocol):
     def create(self, job: JobRecord) -> JobRecord:
         raise NotImplementedError
 

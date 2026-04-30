@@ -1,5 +1,6 @@
 from pydantic import BaseModel, computed_field
 
+from ddm_engine.detection.review import ReviewAction
 from ddm_engine.extraction.models import BoundingBox
 
 
@@ -28,13 +29,13 @@ class DetectionsResponse(BaseModel):
 
 
 class DetectionReviewRequest(BaseModel):
-    action: str
+    action: ReviewAction
     label: str | None = None
     reason: str = "Human review override."
 
 
 class DetectionReviewResponse(BaseModel):
     candidate_id: str
-    action: str
+    action: ReviewAction
     label: str | None = None
     reason: str
